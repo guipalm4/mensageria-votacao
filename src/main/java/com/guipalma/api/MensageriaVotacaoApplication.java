@@ -1,10 +1,16 @@
 package com.guipalma.api;
 
 
+import static java.lang.System.getenv;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -25,6 +31,8 @@ public class MensageriaVotacaoApplication   implements ApplicationRunner {
     public static final String QUEUE_GENERIC_NAME = "appGenericQueue";
     public static final String QUEUE_SPECIFIC_NAME = "appResultadoQueue";
     public static final String ROUTING_KEY = "messages.key";
+    public static final String CLOUDAMQP_URL = "amqp://ydvmaaah:yyZL5QU8DjBb8nV_QLAuZo3ih6EtyiF3@orangutan.rmq.cloudamqp.com/ydvmaaah";	
+	
 	
 	public static void main(String[] args) {		
 		SpringApplicationBuilder builder = new SpringApplicationBuilder(MensageriaVotacaoApplication.class);
@@ -33,42 +41,60 @@ public class MensageriaVotacaoApplication   implements ApplicationRunner {
 	}
 	
 	@Bean
-    public TopicExchange appExchange() {
-        return new TopicExchange(EXCHANGE_NAME);
-    }
+	 public ConnectionFactory connectionFactory() {
+	     final URI rabbitMqUrl;
+	     try {
+	         rabbitMqUrl = new URI(CLOUDAMQP_URL);
+	     } catch (URISyntaxException e) {
+	         throw new RuntimeException(e);
+	     }
 
-    @Bean
-    public Queue appQueueGeneric() {
-        return new Queue(QUEUE_GENERIC_NAME);
-    }
+	     final CachingConnectionFactory factory = new CachingConnectionFactory();
+	     factory.setUsername(rabbitMqUrl.getUserInfo().split(":")[0]);
+	     factory.setPassword(rabbitMqUrl.getUserInfo().split(":")[1]);
+	     factory.setHost(rabbitMqUrl.getHost());
+	     factory.setPort(rabbitMqUrl.getPort());
+	     factory.setVirtualHost(rabbitMqUrl.getPath().substring(1));
 
-    @Bean
-    public Queue appQueueSpecific() {
-        return new Queue(QUEUE_SPECIFIC_NAME);
-    }
+	     return factory;
+	 }
+	
+	@Bean
+   public TopicExchange appExchange() {
+       return new TopicExchange(EXCHANGE_NAME);
+   }
 
-    @Bean
-    public Binding declareBindingGeneric() {
-        return BindingBuilder.bind(appQueueGeneric()).to(appExchange()).with(ROUTING_KEY);
-    }
+   @Bean
+   public Queue appQueueGeneric() {
+       return new Queue(QUEUE_GENERIC_NAME);
+   }
 
-    @Bean
-    public Binding declareBindingSpecific() {
-        return BindingBuilder.bind(appQueueSpecific()).to(appExchange()).with(ROUTING_KEY);
-    }
+   @Bean
+   public Queue appQueueSpecific() {
+       return new Queue(QUEUE_SPECIFIC_NAME);
+   }
 
- // You can comment the two methods below to use the default serialization / deserialization (instead of JSON)
-    @Bean
-    public RabbitTemplate rabbitTemplate(final ConnectionFactory connectionFactory) {
-        final var rabbitTemplate = new RabbitTemplate(connectionFactory);
-        rabbitTemplate.setMessageConverter(producerJackson2MessageConverter());
-        return rabbitTemplate;
-    }
+   @Bean
+   public Binding declareBindingGeneric() {
+       return BindingBuilder.bind(appQueueGeneric()).to(appExchange()).with(ROUTING_KEY);
+   }
 
-    @Bean
-    public Jackson2JsonMessageConverter producerJackson2MessageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
+   @Bean
+   public Binding declareBindingSpecific() {
+       return BindingBuilder.bind(appQueueSpecific()).to(appExchange()).with(ROUTING_KEY);
+   }
+
+   @Bean
+   public RabbitTemplate rabbitTemplate(final ConnectionFactory connectionFactory) {
+       final var rabbitTemplate = new RabbitTemplate(connectionFactory);
+       rabbitTemplate.setMessageConverter(producerJackson2MessageConverter());
+       return rabbitTemplate;
+   }
+
+   @Bean
+   public Jackson2JsonMessageConverter producerJackson2MessageConverter() {
+       return new Jackson2JsonMessageConverter();
+   }  
 
 	@Override
 	public void run(ApplicationArguments args) throws Exception {
